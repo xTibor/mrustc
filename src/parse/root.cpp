@@ -1679,6 +1679,17 @@ bool Parse_MacroInvocation_Opt(TokenStream& lex,  AST::MacroInvocation& out_inv)
         // `unsafe impl`
         case TOK_RWORD_IMPL:
             return ::AST::Named< ::AST::Item> { "", Parse_Impl(lex, mv$(meta_items), true), false };
+        case TOK_IDENT:
+            if( tok.str() == "auto" ) {
+                GET_CHECK_TOK(tok, lex, TOK_RWORD_TRAIT);
+                item_name = mv$(tok.str());
+                // TODO: Mark as unsafe
+                meta_items.push_back( AST::MetaItem("#UNSAFE") );
+                item_data = ::AST::Item( Parse_TraitDef(lex, meta_items) );
+                break;
+            }
+            else {
+            }
         default:
             throw ParseError::Unexpected(lex, tok, {TOK_RWORD_FN, TOK_RWORD_TRAIT, TOK_RWORD_IMPL});
         }
@@ -1715,6 +1726,14 @@ bool Parse_MacroInvocation_Opt(TokenStream& lex,  AST::MacroInvocation& out_inv)
             item_name = mv$(tok.str());
             item_data = ::AST::Item( Parse_Union(lex, meta_items) );
         }
+        // 1.25 - `auto trait`
+        else if( tok.str() == "auto" ) {
+            GET_CHECK_TOK(tok, lex, TOK_RWORD_TRAIT);
+            GET_CHECK_TOK(tok, lex, TOK_IDENT);
+            item_name = mv$(tok.str());
+            item_data = ::AST::Item( Parse_TraitDef(lex, meta_items) );
+	    // TODO: Mark trait as being a marker.
+        }
         else {
             throw ParseError::Unexpected(lex, tok);
         }
@@ -1722,6 +1741,7 @@ bool Parse_MacroInvocation_Opt(TokenStream& lex,  AST::MacroInvocation& out_inv)
     // `impl`
     case TOK_RWORD_IMPL:
         return ::AST::Named< ::AST::Item> { "", Parse_Impl(lex, mv$(meta_items)), false };
+
     // `trait`
     case TOK_RWORD_TRAIT:
         GET_CHECK_TOK(tok, lex, TOK_IDENT);
