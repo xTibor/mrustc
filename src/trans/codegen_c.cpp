@@ -238,10 +238,10 @@ namespace {
             {
             case Compiler::Gcc:
                 m_of
-                    << "#include <stdatomic.h>\n"   // atomic_*
+                    //<< "#include <stdatomic.h>\n"   // atomic_*
                     << "#include <stdlib.h>\n"  // abort
                     << "#include <string.h>\n"  // mem*
-                    << "#include <math.h>\n"  // round, ...
+                    //<< "#include <math.h>\n"  // round, ...
                     << "#include <setjmp.h>\n"  // setjmp/jmp_buf
                     ;
                 break;
@@ -282,7 +282,7 @@ namespace {
             {
             case Compiler::Gcc:
                 m_of
-                    << "extern void _Unwind_Resume(void) __attribute__((noreturn));\n"
+                    << "static void _Unwind_Resume(void) { }\n"
                     << "#define ALIGNOF(t) __alignof__(t)\n"
                     ;
                 break;
@@ -299,10 +299,11 @@ namespace {
             {
             case Compiler::Gcc:
                 m_of
-                    << "extern __thread jmp_buf*    mrustc_panic_target;\n"
-                    << "extern __thread void* mrustc_panic_value;\n"
+                    << "extern jmp_buf*    mrustc_panic_target;\n"
+                    << "extern void* mrustc_panic_value;\n"
                     ;
                 // 64-bit bit ops (gcc intrinsics)
+                /*
                 m_of
                     << "static inline uint64_t __builtin_clz64(uint64_t v) {\n"
                     << "\treturn (v >> 32 != 0 ? __builtin_clz(v>>32) : 32 + __builtin_clz(v));\n"
@@ -311,6 +312,7 @@ namespace {
                     << "\treturn ((v&0xFFFFFFFF) == 0 ? __builtin_ctz(v>>32) + 32 : __builtin_ctz(v));\n"
                     << "}\n"
                     ;
+                    */
                 break;
             case Compiler::Msvc:
                 m_of
@@ -525,6 +527,7 @@ namespace {
             else
             {
                 // GCC-only
+                /*
                 m_of
                     << "typedef unsigned __int128 uint128_t;\n"
                     << "typedef signed __int128 int128_t;\n"
@@ -540,27 +543,29 @@ namespace {
                     << "\treturn (v == 0 ? 128 : ((v&0xFFFFFFFFFFFFFFFF) == 0 ? __builtin_ctz64(v>>64) + 64 : __builtin_ctz64(v)));\n"
                     << "}\n"
                     ;
+                    */
             }
 
             // Common helpers
             m_of
                 << "\n"
-                << "static inline int slice_cmp(SLICE_PTR l, SLICE_PTR r) {\n"
+                << "static int slice_cmp(SLICE_PTR l, SLICE_PTR r) {\n"
                 << "\tint rv = memcmp(l.PTR, r.PTR, l.META < r.META ? l.META : r.META);\n"
                 << "\tif(rv != 0) return rv;\n"
                 << "\tif(l.META < r.META) return -1;\n"
                 << "\tif(l.META > r.META) return 1;\n"
                 << "\treturn 0;\n"
                 << "}\n"
-                << "static inline SLICE_PTR make_sliceptr(void* ptr, size_t s) { SLICE_PTR rv = { ptr, s }; return rv; }\n"
-                << "static inline TRAITOBJ_PTR make_traitobjptr(void* ptr, void* vt) { TRAITOBJ_PTR rv = { ptr, vt }; return rv; }\n"
+                << "static SLICE_PTR make_sliceptr(void* ptr, size_t s) { SLICE_PTR rv; rv.PTR = ptr; rv.META = s; return rv; }\n"
+                //<< "static TRAITOBJ_PTR make_traitobjptr(void* ptr, void* vt) { TRAITOBJ_PTR rv = { ptr, vt }; return rv; }\n"
                 << "\n"
-                << "static inline size_t mrustc_max(size_t a, size_t b) { return a < b ? b : a; }\n"
-                << "static inline void noop_drop(tUNIT *p) { }\n"
+                << "static size_t mrustc_max(size_t a, size_t b) { return a < b ? b : a; }\n"
+                << "static void noop_drop(tUNIT *p) { }\n"
                 << "\n"
                 // A linear (fast-fail) search of a list of strings
-                << "static inline size_t mrustc_string_search_linear(SLICE_PTR val, size_t count, SLICE_PTR* options) {\n"
-                << "\tfor(size_t i = 0; i < count; i ++) {\n"
+                << "static size_t mrustc_string_search_linear(SLICE_PTR val, size_t count, SLICE_PTR* options) {\n"
+                << "\tsize_t i = 0;\n"
+                << "\tfor(i = 0; i < count; i ++) {\n"
                 << "\t\tint cmp = slice_cmp(val, options[i]);\n"
                 << "\t\tif(cmp < 0) break;\n"
                 << "\t\tif(cmp == 0) return i;\n"
@@ -583,7 +588,7 @@ namespace {
             // TODO: Define this function in MIR.
             if( is_executable )
             {
-                m_of << "int main(int argc, const char* argv[]) {\n";
+                m_of << "int main(int argc, char* argv[]) {\n";
                 auto c_start_path = m_resolve.m_crate.get_lang_item_path_opt("mrustc-start");
                 if( c_start_path == ::HIR::SimplePath() )
                 {
@@ -600,8 +605,8 @@ namespace {
                 if( m_compiler == Compiler::Gcc )
                 {
                     m_of
-                        << "__thread jmp_buf* mrustc_panic_target;\n"
-                        << "__thread void* mrustc_panic_value;\n"
+                        << "jmp_buf* mrustc_panic_target;\n"
+                        << "void* mrustc_panic_value;\n"
                         ;
                 }
             }
@@ -877,7 +882,7 @@ namespace {
                 emit_type_fn(ty); m_of << "\n";
             )
             else TU_IFLET( ::HIR::TypeRef::Data, ty.m_data, Array, te,
-                m_of << "typedef struct "; emit_ctype(ty); m_of << " "; emit_ctype(ty); m_of << ";\n";
+                //m_of << "typedef struct "; emit_ctype(ty); m_of << " "; emit_ctype(ty); m_of << ";\n";
             )
             else TU_IFLET( ::HIR::TypeRef::Data, ty.m_data, Path, te,
                 TU_MATCHA( (te.binding), (tpb),
@@ -1154,7 +1159,7 @@ namespace {
             if( true && repr->size > 0 && !has_unsized )
             {
                 // TODO: Handle unsized (should check the size of the fixed-size region)
-                m_of << "typedef char sizeof_assert_" << Trans_Mangle(p) << "[ (sizeof(struct s_" << Trans_Mangle(p) << ") == " << repr->size << ") ? 1 : -1 ];\n";
+                //m_of << "typedef char sizeof_assert_" << Trans_Mangle(p) << "[ (sizeof(struct s_" << Trans_Mangle(p) << ") == " << repr->size << ") ? 1 : -1 ];\n";
                 //m_of << "typedef char alignof_assert_" << Trans_Mangle(p) << "[ (ALIGNOF(struct s_" << Trans_Mangle(p) << ") == " << repr->align << ") ? 1 : -1 ];\n";
             }
 
@@ -1226,7 +1231,7 @@ namespace {
             m_of << "};\n";
             if( true && repr->size > 0 )
             {
-                m_of << "typedef char sizeof_assert_" << Trans_Mangle(p) << "[ (sizeof(union u_" << Trans_Mangle(p) << ") == " << repr->size << ") ? 1 : -1 ];\n";
+                //m_of << "typedef char sizeof_assert_" << Trans_Mangle(p) << "[ (sizeof(union u_" << Trans_Mangle(p) << ") == " << repr->size << ") ? 1 : -1 ];\n";
             }
 
             // Drop glue (calls destructor if there is one)
@@ -1412,7 +1417,7 @@ namespace {
             m_of << "};\n";
             if( true && repr->size > 0 )
             {
-                m_of << "typedef char sizeof_assert_" << Trans_Mangle(p) << "[ (sizeof(struct e_" << Trans_Mangle(p) << ") == " << repr->size << ") ? 1 : -1 ];\n";
+                //m_of << "typedef char sizeof_assert_" << Trans_Mangle(p) << "[ (sizeof(struct e_" << Trans_Mangle(p) << ") == " << repr->size << ") ? 1 : -1 ];\n";
             }
 
             // ---
@@ -3526,7 +3531,7 @@ namespace {
                     if( (*ve)[i] == INT64_MIN )
                         m_of << "INT64_MIN";
                     else
-                        m_of << (*ve)[i] << "ll";
+                        m_of << (*ve)[i] << "l";
                     m_of << ": "; cb(i); m_of << " break;\n";
                 }
                 m_of << indent << "\tdefault: "; cb(SIZE_MAX); m_of << "\n";
@@ -5441,17 +5446,17 @@ namespace {
                     case ::HIR::CoreType::I64:
                     case ::HIR::CoreType::Isize:
                         m_of << c.v;
-                        m_of << "ll";
+                        m_of << "l";
                         break;
                     case ::HIR::CoreType::I128:
                         if( m_options.emulated_i128 )
                         {
-                            m_of << "make128s(" << c.v << "ll)";
+                            m_of << "make128s(" << c.v << "l)";
                         }
                         else
                         {
                             m_of << c.v;
-                            m_of << "ll";
+                            m_of << "l";
                         }
                         break;
                     default:
@@ -5474,16 +5479,16 @@ namespace {
                     break;
                 case ::HIR::CoreType::U64:
                 case ::HIR::CoreType::Usize:
-                    m_of << ::std::hex << "0x" << c.v << "ull" << ::std::dec;
+                    m_of << ::std::hex << "0x" << c.v << "ul" << ::std::dec;
                     break;
                 case ::HIR::CoreType::U128:
                     if( m_options.emulated_i128 )
                     {
-                        m_of << "make128(" << ::std::hex << "0x" << c.v << "ull)" << ::std::dec;
+                        m_of << "make128(" << ::std::hex << "0x" << c.v << "ul)" << ::std::dec;
                     }
                     else
                     {
-                        m_of << ::std::hex << "0x" << c.v << "ull" << ::std::dec;
+                        m_of << ::std::hex << "0x" << c.v << "ul" << ::std::dec;
                     }
                     break;
                 case ::HIR::CoreType::Char:
